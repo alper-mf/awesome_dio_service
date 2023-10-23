@@ -10,7 +10,7 @@ import 'package:dio_http_cache/dio_http_cache.dart';
 import 'package:logger/logger.dart';
 
 // Enum to define HTTP methods
-enum DioHttpMethod { GET, POST, PUT, DELETE, PATCH }
+enum DioHttpMethod { GET, POST, PUT, DELETE, PATCH, UPDATE }
 
 // DioClient class for handling API requests
 class DioClient {
@@ -136,7 +136,7 @@ class DioClient {
           // Send PUT request
           response = await _dio.putUri(uri, data: bodyParam, options: _options(customHeaderParams));
           break;
-           case DioHttpMethod.PATCH:
+        case DioHttpMethod.PATCH:
           // Send PUT request
           response = await _dio.patchUri(uri, data: bodyParam, options: _options(customHeaderParams));
           break;
@@ -145,11 +145,14 @@ class DioClient {
           throw DioError(requestOptions: RequestOptions(path: pathBody), error: 'Method not found');
       }
       return response;
-    } catch (e) {
-      // Log and throw DioError for failed requests
+    } on DioError catch (e){
       logger.e('ERROR => PATH: $pathBody => BODY: $bodyParam', error: e);
-      throw DioError(requestOptions: RequestOptions(path: pathBody), error: e.toString());
+      rethrow;
+    } catch (e){
+      logger.e('ERROR => PATH: $pathBody => BODY: $bodyParam', error: e);
+      rethrow;
     }
+  
   }
 
   /// Public method to make HTTP requests
