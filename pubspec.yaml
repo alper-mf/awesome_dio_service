@@ -10,8 +10,7 @@ dependencies:
   flutter:
     sdk: flutter
   
-  dio: ^4.0.0
-  dio_http_cache: ^0.3.0
+  dio: ^5.3.3
   logger: ^2.0.2+1
 
 dev_dependencies:

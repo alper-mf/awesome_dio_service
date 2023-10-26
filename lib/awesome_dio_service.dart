@@ -6,7 +6,6 @@ import 'dart:io';
 
 import 'package:cp_dio_client/service/mock_api_service.dart';
 import 'package:dio/dio.dart';
-import 'package:dio_http_cache/dio_http_cache.dart';
 import 'package:logger/logger.dart';
 
 // Enum to define HTTP methods
@@ -41,8 +40,8 @@ class DioClient {
           BaseOptions(
             baseUrl: baseUrl,
             headers: headerParam,
-            connectTimeout: 30000,
-            receiveTimeout: 30000,
+            connectTimeout: const Duration(seconds: 30),
+            receiveTimeout: const Duration(seconds: 30),
           ),
         ) {
     addInterceptors(onUnauthorized: onUnauthorized);
@@ -68,7 +67,7 @@ class DioClient {
           );
           return handler.next(response);
         },
-        onError: (DioError e, handler) {
+        onError: (DioException e, handler) {
           // Log error details
           logger.f(
             'ERROR[${e.response?.statusCode}]  \n\nPATH: ${e.requestOptions.path}  \n\nBODY: ${e.response?.data}',
@@ -85,11 +84,11 @@ class DioClient {
     );
 
     // Add DioCacheManager interceptor for caching requests
-    _dio.interceptors.add(
+    /*   _dio.interceptors.add(
       DioCacheManager(
         CacheConfig(baseUrl: baseUrl),
       ).interceptor,
-    );
+    ); */
   }
 
   // Helper method to create Dio Options with headers
@@ -115,14 +114,14 @@ class DioClient {
       switch (method) {
         case DioHttpMethod.GET:
           // Send GET request with caching options
-          response = await _dio.getUri(
-            uri,
-            options: buildCacheOptions(
+          response = await _dio.getUri(uri,
+              /*   options: buildCacheOptions(
               const Duration(days: 7),
               forceRefresh: forceRefresh ?? true,
               options: _options(customHeaderParams),
-            ),
-          );
+            ), */
+
+              options: _options(customHeaderParams));
           break;
         case DioHttpMethod.POST:
           // Send POST request
@@ -142,17 +141,16 @@ class DioClient {
           break;
         default:
           // Handle unsupported HTTP methods
-          throw DioError(requestOptions: RequestOptions(path: pathBody), error: 'Method not found');
+          throw DioException(requestOptions: RequestOptions(path: pathBody), error: 'Method not found');
       }
       return response;
-    } on DioError catch (e){
+    } on DioException catch (e) {
       logger.e('ERROR => PATH: $pathBody => BODY: $bodyParam', error: e);
       rethrow;
-    } catch (e){
+    } catch (e) {
       logger.e('ERROR => PATH: $pathBody => BODY: $bodyParam', error: e);
       rethrow;
     }
-  
   }
 
   /// Public method to make HTTP requests
