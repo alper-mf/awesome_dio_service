@@ -35,20 +35,19 @@ class DioClient {
   }
 
   // Private constructor for DioClient
-  DioClient._internal({required this.baseUrl, Function? onUnauthorized, this.headerParam})
-      : _dio = Dio(
-          BaseOptions(
-            baseUrl: baseUrl,
-            headers: headerParam,
-            connectTimeout: const Duration(seconds: 30),
-            receiveTimeout: const Duration(seconds: 30),
-          ),
-        ) {
+  DioClient._internal({required this.baseUrl, Function? onUnauthorized, this.headerParam}) : _dio = Dio() {
     addInterceptors(onUnauthorized: onUnauthorized);
   }
 
   // Method to add interceptors for logging requests and responses
   void addInterceptors({Function? onUnauthorized}) {
+    _dio.options = BaseOptions(
+      baseUrl: Uri.https(baseUrl, '').toString(),
+      connectTimeout: const Duration(seconds: 30),
+      receiveTimeout: const Duration(seconds: 30),
+      headers: headerParam,
+    );
+
     _dio.interceptors.add(
       InterceptorsWrapper(
         onRequest: (options, handler) {
@@ -114,14 +113,16 @@ class DioClient {
       switch (method) {
         case DioHttpMethod.GET:
           // Send GET request with caching options
-          response = await _dio.getUri(uri,
-              /*   options: buildCacheOptions(
+          response = await _dio.getUri(
+            uri,
+            /*   options: buildCacheOptions(
               const Duration(days: 7),
               forceRefresh: forceRefresh ?? true,
               options: _options(customHeaderParams),
             ), */
 
-              options: _options(customHeaderParams));
+            //options: _options(customHeaderParams),
+          );
           break;
         case DioHttpMethod.POST:
           // Send POST request
