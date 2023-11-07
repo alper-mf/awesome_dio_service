@@ -121,7 +121,7 @@ class DioClient {
               options: _options(customHeaderParams),
             ), */
 
-            //options: _options(customHeaderParams),
+            options: _options(customHeaderParams),
           );
           break;
         case DioHttpMethod.POST:
@@ -174,11 +174,14 @@ class DioClient {
   /// ```
   /// Returns a Future<Response?> object
   /// ```dart
-  Future<Response?> request(DioHttpMethod method, String path,
-      {Map<String, dynamic> bodyParam = const {},
-      Map<String, String>? headerParam,
-      bool? forceRefresh,
-      Map<String, dynamic>? queryParams}) async {
+  Future<Response?> request(
+    DioHttpMethod method,
+    String path, {
+    Map<String, dynamic> bodyParam = const {},
+    Map<String, String>? headerParam,
+    bool? forceRefresh,
+    Map<String, dynamic>? queryParams,
+  }) async {
     return await _sendRequest(
       method,
       path,
