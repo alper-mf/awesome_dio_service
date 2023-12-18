@@ -72,6 +72,7 @@ class DioClient {
             'ERROR[${e.response?.statusCode}]  \n\nPATH: ${e.requestOptions.path}  \n\nBODY: ${e.response?.data}',
             error: 'Error Path: ${e.requestOptions.path} => Error Message: ${e.message}',
             time: DateTime.now(),
+            stackTrace: e.stackTrace,
           );
 
           // If unauthorized, call onUnauthorized function
