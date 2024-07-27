@@ -2,11 +2,11 @@
 
 library cp_dio_client;
 
-import 'dart:io';
-
-import 'package:cp_dio_client/service/mock_api_service.dart';
 import 'package:dio/dio.dart';
+import 'package:icrypex_wallet_app/app/managers/dio_service/service/app_interceptors.dart';
 import 'package:logger/logger.dart';
+
+import 'service/mock_api_service.dart';
 
 // Enum to define HTTP methods
 enum DioHttpMethod { GET, POST, PUT, DELETE, PATCH, UPDATE }
@@ -15,32 +15,48 @@ enum DioHttpMethod { GET, POST, PUT, DELETE, PATCH, UPDATE }
 class DioClient {
   static DioClient? _instance; // Singleton instance of DioClient
   final String baseUrl; // Base URL of the API
+
   final Map<String, dynamic>? headerParam; // Token for authorization
   final MockApiService mockApiService = MockApiService(); // MockApiService for testing
   final Dio _dio; // Dio instance for making HTTP requests
-  final logger = Logger(printer: PrettyPrinter(methodCount: 0)); // Logger for logging requests and responses
+  late final AppInterceptors _appInterceptors; // AppInterceptors for logging requests and responses
+
+  //* Logger
+  final logger = Logger(
+    printer: PrettyPrinter(
+      errorMethodCount: 8, // Number of method calls if stacktrace is provided
+      lineLength: 120, // Width of the output
+      colors: false, // Colorful log messages
+      printEmojis: true, // Print an emoji for each log message
+      printTime: true, // Should each log print contain a timestamp
+    ),
+    level: Level.all,
+  ); // Logger for logging requests and responses
 
   // Singleton instance method for DioClient
   static DioClient instance({
     required String baseUrl,
-    Function? onUnauthorized,
     Map<String, dynamic>? headerParam,
   }) {
     _instance ??= DioClient._internal(
       baseUrl: baseUrl,
-      onUnauthorized: onUnauthorized,
       headerParam: headerParam,
     );
+
+    if (_instance == null) {
+      throw Exception('DioClient instance not initialized');
+    }
+
     return _instance!;
   }
 
   // Private constructor for DioClient
-  DioClient._internal({required this.baseUrl, Function? onUnauthorized, this.headerParam}) : _dio = Dio() {
-    addInterceptors(onUnauthorized: onUnauthorized);
+  DioClient._internal({required this.baseUrl, this.headerParam}) : _dio = Dio() {
+    addInterceptors();
   }
 
   // Method to add interceptors for logging requests and responses
-  void addInterceptors({Function? onUnauthorized}) {
+  void addInterceptors() {
     _dio.options = BaseOptions(
       baseUrl: Uri.https(baseUrl, '').toString(),
       connectTimeout: const Duration(seconds: 30),
@@ -48,46 +64,9 @@ class DioClient {
       headers: headerParam,
     );
 
-    _dio.interceptors.add(
-      InterceptorsWrapper(
-        onRequest: (options, handler) {
-          // Log request details
-          logger.d(
-            'REQUEST[${options.method}] \n\nPATH: ${options.path}  \n\nHEADER: ${options.headers}  \n\nBODY: ${options.data}',
-            time: DateTime.now(),
-          );
-          return handler.next(options);
-        },
-        onResponse: (response, handler) {
-          // Log response details
-          logger.d(
-            'RESPONSE[${response.statusCode}]  \n\nPATH: ${response.requestOptions.path}  \n\nBODY: ${response.data}',
-            time: DateTime.now(),
-          );
-          return handler.next(response);
-        },
-        onError: (DioException e, handler) {
-          // Log error details
-          logger.f(
-            'ERROR[${e.response?.statusCode}]  \n\nPATH: ${e.requestOptions.path}  \n\nBODY: ${e.response?.data}',
-            error: 'Error Path: ${e.requestOptions.path} => Error Message: ${e.message}',
-            time: DateTime.now(),
-          );
+    _appInterceptors = AppInterceptors(_dio, logger);
 
-          // If unauthorized, call onUnauthorized function
-          if (e.response?.statusCode == HttpStatus.unauthorized) onUnauthorized?.call();
-
-          return handler.next(e);
-        },
-      ),
-    );
-
-    // Add DioCacheManager interceptor for caching requests
-    /*   _dio.interceptors.add(
-      DioCacheManager(
-        CacheConfig(baseUrl: baseUrl),
-      ).interceptor,
-    ); */
+    _dio.interceptors.add(_appInterceptors);
   }
 
   // Helper method to create Dio Options with headers
@@ -95,6 +74,7 @@ class DioClient {
     Map<String, dynamic> headers = {};
     headers.addAll(customHeaderParams ?? {});
     headers.addAll(headerParam ?? {});
+
     return Options(headers: headers);
   }
 
@@ -112,17 +92,8 @@ class DioClient {
       Response response;
       switch (method) {
         case DioHttpMethod.GET:
-          // Send GET request with caching options
-          response = await _dio.getUri(
-            uri,
-            /*   options: buildCacheOptions(
-              const Duration(days: 7),
-              forceRefresh: forceRefresh ?? true,
-              options: _options(customHeaderParams),
-            ), */
-
-            options: _options(customHeaderParams),
-          );
+          // Send GET request
+          response = await _dio.getUri(uri, options: _options(customHeaderParams));
           break;
         case DioHttpMethod.POST:
           // Send POST request
@@ -137,58 +108,28 @@ class DioClient {
           response = await _dio.putUri(uri, data: bodyParam, options: _options(customHeaderParams));
           break;
         case DioHttpMethod.PATCH:
-          // Send PUT request
+          // Send PATCH request
           response = await _dio.patchUri(uri, data: bodyParam, options: _options(customHeaderParams));
           break;
         default:
           // Handle unsupported HTTP methods
           throw DioException(requestOptions: RequestOptions(path: pathBody), error: 'Method not found');
       }
+
       return response;
-    } on DioException catch (e) {
-      logger.e('ERROR => PATH: $pathBody => BODY: $bodyParam', error: e);
-      rethrow;
-    } catch (e) {
-      logger.e('ERROR => PATH: $pathBody => BODY: $bodyParam', error: e);
+    } on DioException {
       rethrow;
     }
   }
 
   /// Public method to make HTTP requests
-  /// [method] is the HTTP method to be used e.g. DioHttpMethod.GET
-  ///
-  /// [path] is the path of the API endpoint e.g. 'posts'
-  ///
-  /// [bodyParam] is the body of the request e.g. {"title": 'I am in love with someone.', "userId": "5"}
-  ///
-  /// [forceRefresh] is a boolean to force refresh the cache
-  ///
-  ///Example:
-  ///```dart
-  ///final response = await dioClient.request(
-  ///  DioHttpMethod.GET,
-  /// 'posts',
-  /// bodyParam: {"title": 'I am in love with someone.', "userId": "5"},
-  /// forceRefresh: true,
-  /// );
-  /// ```
-  /// Returns a Future<Response?> object
-  /// ```dart
   Future<Response?> request(
     DioHttpMethod method,
     String path, {
     Map<String, dynamic> bodyParam = const {},
     Map<String, String>? headerParam,
-    bool? forceRefresh,
     Map<String, dynamic>? queryParams,
   }) async {
-    return await _sendRequest(
-      method,
-      path,
-      bodyParam,
-      headerParam,
-      queryParams,
-      forceRefresh,
-    );
+    return await _sendRequest(method, path, bodyParam, headerParam, queryParams, null);
   }
 }
